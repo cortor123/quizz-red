@@ -13,14 +13,29 @@ function Admin() {
   const [timeLeft, setTimeLeft] = useState(getTimeLeft(defaultQuiz))
   const [isConnected, setIsConnected] = useState(socket.connected)
 
+  const [isAuthorized, setIsAuthorized] = useState(false)
+  const [password, setPassword] = useState("")
+  const [authError, setAuthError] = useState("")
+
   const current = useMemo(
     () => quiz.questions[quiz.currentQuestionIndex] || quiz.questions[0],
     [quiz]
   )
 
   useEffect(() => {
+    const saved = sessionStorage.getItem("quiz-red-admin-auth")
+    if (saved === "ok") {
+      setIsAuthorized(true)
+    }
+
     const handleConnect = () => {
       setIsConnected(true)
+      if (sessionStorage.getItem("quiz-red-admin-auth") === "ok") {
+        socket.emit("auth:login", {
+          role: "admin",
+          password: sessionStorage.getItem("quiz-red-admin-password") || "",
+        })
+      }
     }
 
     const handleDisconnect = () => {
@@ -33,16 +48,35 @@ function Admin() {
       setTimeLeft(getTimeLeft(quiz))
     }
 
+    const handleAuthSuccess = ({ role }) => {
+      if (role === "admin") {
+        setIsAuthorized(true)
+        setAuthError("")
+        sessionStorage.setItem("quiz-red-admin-auth", "ok")
+        sessionStorage.setItem("quiz-red-admin-password", password)
+      }
+    }
+
+    const handleAuthError = ({ message }) => {
+      setIsAuthorized(false)
+      setAuthError(message || "Error d'autenticació")
+      sessionStorage.removeItem("quiz-red-admin-auth")
+    }
+
     socket.on("connect", handleConnect)
     socket.on("disconnect", handleDisconnect)
     socket.on("state:update", handleState)
+    socket.on("auth:success", handleAuthSuccess)
+    socket.on("auth:error", handleAuthError)
 
     return () => {
       socket.off("connect", handleConnect)
       socket.off("disconnect", handleDisconnect)
       socket.off("state:update", handleState)
+      socket.off("auth:success", handleAuthSuccess)
+      socket.off("auth:error", handleAuthError)
     }
-  }, [])
+  }, [password])
 
   useEffect(() => {
     if (quiz.phase !== "answers") {
@@ -56,6 +90,23 @@ function Admin() {
 
     return () => clearInterval(interval)
   }, [quiz])
+
+  function login() {
+    setAuthError("")
+    socket.emit("auth:login", {
+      role: "admin",
+      password,
+    })
+  }
+
+  function logout() {
+    setIsAuthorized(false)
+    setPassword("")
+    setAuthError("")
+    sessionStorage.removeItem("quiz-red-admin-auth")
+    sessionStorage.removeItem("quiz-red-admin-password")
+    window.location.reload()
+  }
 
   function pushQuiz(newQuiz) {
     setQuiz(newQuiz)
@@ -157,6 +208,76 @@ function Admin() {
     socket.emit("admin:next-question")
   }
 
+  if (!isAuthorized) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#111111",
+          padding: 24,
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 420,
+            background: "#1d1d1d",
+            color: "white",
+            borderRadius: 20,
+            padding: 24,
+          }}
+        >
+          <h1 style={{ marginTop: 0 }}>Accés Admin</h1>
+
+          <p>
+            Estat socket:{" "}
+            <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>
+              {isConnected ? "connectat" : "desconnectat"}
+            </strong>
+          </p>
+
+          <input
+            type="password"
+            placeholder="Contrasenya admin"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 12,
+              fontSize: 16,
+              borderRadius: 10,
+              border: "1px solid #555",
+              boxSizing: "border-box",
+              marginBottom: 12,
+            }}
+          />
+
+          {authError && (
+            <div style={{ color: "#ff8f8f", marginBottom: 12 }}>{authError}</div>
+          )}
+
+          <button
+            onClick={login}
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 16,
+            }}
+          >
+            Entrar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (!current) {
     return <div style={{ padding: 24 }}>Carregant admin...</div>
   }
@@ -179,6 +300,12 @@ function Admin() {
           <span style={{ color: isConnected ? "green" : "red" }}>
             {isConnected ? "connectat" : "desconnectat"}
           </span>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <button type="button" onClick={logout}>
+            Sortir
+          </button>
         </div>
 
         <div style={{ marginBottom: 16 }}>
@@ -292,87 +419,28 @@ function Admin() {
             gap: 16,
           }}
         >
-          <label>
-            Color de fons
-            <br />
-            <input
-              type="color"
-              value={current.settings.background}
-              onChange={(e) => updateSettings("background", e.target.value)}
-            />
-          </label>
+          <label>Color de fons<br /><input type="color" value={current.settings.background} onChange={(e) => updateSettings("background", e.target.value)} /></label>
+          <label>Temps de resposta<br /><input type="number" value={current.timeLimit} onChange={(e) => updateField("timeLimit", Number(e.target.value))} /></label>
+          <label>Mida pregunta<br /><input type="number" value={current.settings.questionSize} onChange={(e) => updateSettings("questionSize", Number(e.target.value))} /></label>
+          <label>Mida resposta<br /><input type="number" value={current.settings.answerSize} onChange={(e) => updateSettings("answerSize", Number(e.target.value))} /></label>
 
           <label>
-            Temps de resposta
-            <br />
-            <input
-              type="number"
-              value={current.timeLimit}
-              onChange={(e) => updateField("timeLimit", Number(e.target.value))}
-            />
-          </label>
-
-          <label>
-            Mida pregunta
-            <br />
-            <input
-              type="number"
-              value={current.settings.questionSize}
-              onChange={(e) =>
-                updateSettings("questionSize", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Mida resposta
-            <br />
-            <input
-              type="number"
-              value={current.settings.answerSize}
-              onChange={(e) =>
-                updateSettings("answerSize", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Font pregunta
-            <br />
-            <select
-              value={current.settings.questionFont}
-              onChange={(e) => updateSettings("questionFont", e.target.value)}
-            >
-              {FONT_OPTIONS.map((font) => (
-                <option key={font} value={font}>
-                  {font}
-                </option>
-              ))}
+            Font pregunta<br />
+            <select value={current.settings.questionFont} onChange={(e) => updateSettings("questionFont", e.target.value)}>
+              {FONT_OPTIONS.map((font) => <option key={font} value={font}>{font}</option>)}
             </select>
           </label>
 
           <label>
-            Font resposta
-            <br />
-            <select
-              value={current.settings.answerFont}
-              onChange={(e) => updateSettings("answerFont", e.target.value)}
-            >
-              {FONT_OPTIONS.map((font) => (
-                <option key={font} value={font}>
-                  {font}
-                </option>
-              ))}
+            Font resposta<br />
+            <select value={current.settings.answerFont} onChange={(e) => updateSettings("answerFont", e.target.value)}>
+              {FONT_OPTIONS.map((font) => <option key={font} value={font}>{font}</option>)}
             </select>
           </label>
 
           <label>
-            Alineació pregunta
-            <br />
-            <select
-              value={current.settings.questionAlign}
-              onChange={(e) => updateSettings("questionAlign", e.target.value)}
-            >
+            Alineació pregunta<br />
+            <select value={current.settings.questionAlign} onChange={(e) => updateSettings("questionAlign", e.target.value)}>
               <option value="left">Esquerra</option>
               <option value="center">Centre</option>
               <option value="right">Dreta</option>
@@ -380,12 +448,8 @@ function Admin() {
           </label>
 
           <label>
-            Alineació resposta
-            <br />
-            <select
-              value={current.settings.answerAlign}
-              onChange={(e) => updateSettings("answerAlign", e.target.value)}
-            >
+            Alineació resposta<br />
+            <select value={current.settings.answerAlign} onChange={(e) => updateSettings("answerAlign", e.target.value)}>
               <option value="left">Esquerra</option>
               <option value="center">Centre</option>
               <option value="right">Dreta</option>
@@ -393,12 +457,8 @@ function Admin() {
           </label>
 
           <label>
-            Layout respostes
-            <br />
-            <select
-              value={current.settings.layout}
-              onChange={(e) => updateSettings("layout", e.target.value)}
-            >
+            Layout respostes<br />
+            <select value={current.settings.layout} onChange={(e) => updateSettings("layout", e.target.value)}>
               <option value="grid">Grid</option>
               <option value="row">1 sola línia</option>
               <option value="column">1 columna</option>
@@ -406,172 +466,36 @@ function Admin() {
           </label>
 
           <label>
-            Columnes grid
-            <br />
-            <select
-              value={current.settings.columns}
-              onChange={(e) =>
-                updateSettings("columns", Number(e.target.value))
-              }
-            >
+            Columnes grid<br />
+            <select value={current.settings.columns} onChange={(e) => updateSettings("columns", Number(e.target.value))}>
               <option value={1}>1</option>
               <option value={2}>2</option>
             </select>
           </label>
 
-          <label>
-            Separació entre respostes
-            <br />
-            <input
-              type="number"
-              value={current.settings.gap}
-              onChange={(e) => updateSettings("gap", Number(e.target.value))}
-            />
-          </label>
+          <label>Separació entre respostes<br /><input type="number" value={current.settings.gap} onChange={(e) => updateSettings("gap", Number(e.target.value))} /></label>
+          <label>Separació pregunta-respostes<br /><input type="number" value={current.settings.questionAnswerSpacing} onChange={(e) => updateSettings("questionAnswerSpacing", Number(e.target.value))} /></label>
+          <label>Alçada quadrats respostes<br /><input type="number" value={current.settings.answerHeight} onChange={(e) => updateSettings("answerHeight", Number(e.target.value))} /></label>
+          <label>Radius quadrats<br /><input type="number" value={current.settings.answerRadius} onChange={(e) => updateSettings("answerRadius", Number(e.target.value))} /></label>
+          <label>Padding quadrats<br /><input type="number" value={current.settings.answerPadding} onChange={(e) => updateSettings("answerPadding", Number(e.target.value))} /></label>
+          <label>Amplada màxima display<br /><input type="number" value={current.settings.maxWidth} onChange={(e) => updateSettings("maxWidth", Number(e.target.value))} /></label>
+          <label>Amplada màxima bloc respostes<br /><input type="number" value={current.settings.answersWidth} onChange={(e) => updateSettings("answersWidth", Number(e.target.value))} /></label>
+          <label>Desplaçament horitzontal respostes<br /><input type="number" value={current.settings.answersOffsetX} onChange={(e) => updateSettings("answersOffsetX", Number(e.target.value))} /></label>
+          <label>Desplaçament vertical respostes<br /><input type="number" value={current.settings.answersOffsetY} onChange={(e) => updateSettings("answersOffsetY", Number(e.target.value))} /></label>
+          <label>Desplaçament horitzontal pregunta<br /><input type="number" value={current.settings.questionOffsetX} onChange={(e) => updateSettings("questionOffsetX", Number(e.target.value))} /></label>
+          <label>Desplaçament vertical pregunta<br /><input type="number" value={current.settings.questionOffsetY} onChange={(e) => updateSettings("questionOffsetY", Number(e.target.value))} /></label>
 
           <label>
-            Separació pregunta-respostes
-            <br />
-            <input
-              type="number"
-              value={current.settings.questionAnswerSpacing}
-              onChange={(e) =>
-                updateSettings("questionAnswerSpacing", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Alçada quadrats respostes
-            <br />
-            <input
-              type="number"
-              value={current.settings.answerHeight}
-              onChange={(e) =>
-                updateSettings("answerHeight", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Radius quadrats
-            <br />
-            <input
-              type="number"
-              value={current.settings.answerRadius}
-              onChange={(e) =>
-                updateSettings("answerRadius", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Padding quadrats
-            <br />
-            <input
-              type="number"
-              value={current.settings.answerPadding}
-              onChange={(e) =>
-                updateSettings("answerPadding", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Amplada màxima display
-            <br />
-            <input
-              type="number"
-              value={current.settings.maxWidth}
-              onChange={(e) =>
-                updateSettings("maxWidth", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Amplada màxima bloc respostes
-            <br />
-            <input
-              type="number"
-              value={current.settings.answersWidth}
-              onChange={(e) =>
-                updateSettings("answersWidth", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Desplaçament horitzontal respostes
-            <br />
-            <input
-              type="number"
-              value={current.settings.answersOffsetX}
-              onChange={(e) =>
-                updateSettings("answersOffsetX", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Desplaçament vertical respostes
-            <br />
-            <input
-              type="number"
-              value={current.settings.answersOffsetY}
-              onChange={(e) =>
-                updateSettings("answersOffsetY", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Desplaçament horitzontal pregunta
-            <br />
-            <input
-              type="number"
-              value={current.settings.questionOffsetX}
-              onChange={(e) =>
-                updateSettings("questionOffsetX", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Desplaçament vertical pregunta
-            <br />
-            <input
-              type="number"
-              value={current.settings.questionOffsetY}
-              onChange={(e) =>
-                updateSettings("questionOffsetY", Number(e.target.value))
-              }
-            />
-          </label>
-
-          <label>
-            Mostrar lletres A/B/C/D
-            <br />
-            <select
-              value={String(current.settings.showAnswerLetters)}
-              onChange={(e) =>
-                updateSettings("showAnswerLetters", e.target.value === "true")
-              }
-            >
+            Mostrar lletres A/B/C/D<br />
+            <select value={String(current.settings.showAnswerLetters)} onChange={(e) => updateSettings("showAnswerLetters", e.target.value === "true")}>
               <option value="true">Sí</option>
               <option value="false">No</option>
             </select>
           </label>
 
           <label>
-            Animació pregunta
-            <br />
-            <select
-              value={current.settings.animationQuestion}
-              onChange={(e) =>
-                updateSettings("animationQuestion", e.target.value)
-              }
-            >
+            Animació pregunta<br />
+            <select value={current.settings.animationQuestion} onChange={(e) => updateSettings("animationQuestion", e.target.value)}>
               <option value="none">Cap</option>
               <option value="fade">Fade</option>
               <option value="zoom">Zoom</option>
@@ -580,14 +504,8 @@ function Admin() {
           </label>
 
           <label>
-            Animació respostes
-            <br />
-            <select
-              value={current.settings.animationAnswers}
-              onChange={(e) =>
-                updateSettings("animationAnswers", e.target.value)
-              }
-            >
+            Animació respostes<br />
+            <select value={current.settings.animationAnswers} onChange={(e) => updateSettings("animationAnswers", e.target.value)}>
               <option value="none">Cap</option>
               <option value="fade">Fade</option>
               <option value="pop">Pop</option>
@@ -596,14 +514,8 @@ function Admin() {
           </label>
 
           <label>
-            Animació reveal
-            <br />
-            <select
-              value={current.settings.animationReveal}
-              onChange={(e) =>
-                updateSettings("animationReveal", e.target.value)
-              }
-            >
+            Animació reveal<br />
+            <select value={current.settings.animationReveal} onChange={(e) => updateSettings("animationReveal", e.target.value)}>
               <option value="none">Cap</option>
               <option value="pulse">Pulse</option>
               <option value="glow">Glow</option>
@@ -613,21 +525,11 @@ function Admin() {
 
         <h3 style={{ marginTop: 30 }}>Control del joc</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button type="button" onClick={showQuestion}>
-            Mostrar pregunta
-          </button>
-          <button type="button" onClick={showAnswers}>
-            Mostrar respostes
-          </button>
-          <button type="button" onClick={reveal}>
-            Revelar correcta
-          </button>
-          <button type="button" onClick={backToLobby}>
-            Tornar a lobby
-          </button>
-          <button type="button" onClick={nextQuestion}>
-            Següent pregunta
-          </button>
+          <button type="button" onClick={showQuestion}>Mostrar pregunta</button>
+          <button type="button" onClick={showAnswers}>Mostrar respostes</button>
+          <button type="button" onClick={reveal}>Revelar correcta</button>
+          <button type="button" onClick={backToLobby}>Tornar a lobby</button>
+          <button type="button" onClick={nextQuestion}>Següent pregunta</button>
         </div>
       </div>
     </div>

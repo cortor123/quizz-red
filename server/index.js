@@ -16,6 +16,9 @@ const io = new Server(server, {
   },
 })
 
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin1234"
+const DISPLAY_PASSWORD = process.env.DISPLAY_PASSWORD || "display1234"
+
 const defaultQuestion = {
   question: "Nova pregunta",
   answers: ["A", "B", "C", "D"],
@@ -57,6 +60,7 @@ const state = {
     questions: [{ ...defaultQuestion }],
   },
   players: {},
+  sessions: {}, // socket.id -> { role: "admin" | "display" | null }
 }
 
 function getPublicState() {
@@ -87,10 +91,44 @@ function getTimeLeft() {
   return left > 0 ? left : 0
 }
 
+function getRole(socket) {
+  return state.sessions[socket.id]?.role || null
+}
+
+function isAdmin(socket) {
+  return getRole(socket) === "admin"
+}
+
 io.on("connection", (socket) => {
   console.log("Client connectat:", socket.id)
 
+  state.sessions[socket.id] = { role: null }
+
   socket.emit("state:update", getPublicState())
+  socket.emit("auth:status", { role: null })
+
+  socket.on("auth:login", ({ role, password }) => {
+    const cleanRole = String(role || "").trim()
+    const cleanPassword = String(password || "")
+
+    if (cleanRole === "admin" && cleanPassword === ADMIN_PASSWORD) {
+      state.sessions[socket.id] = { role: "admin" }
+      socket.emit("auth:success", { role: "admin" })
+      socket.emit("auth:status", { role: "admin" })
+      return
+    }
+
+    if (cleanRole === "display" && cleanPassword === DISPLAY_PASSWORD) {
+      state.sessions[socket.id] = { role: "display" }
+      socket.emit("auth:success", { role: "display" })
+      socket.emit("auth:status", { role: "display" })
+      return
+    }
+
+    socket.emit("auth:error", {
+      message: "Contrasenya incorrecta",
+    })
+  })
 
   socket.on("player:join", ({ name }) => {
     const cleanName = String(name || "").trim()
@@ -123,6 +161,7 @@ io.on("connection", (socket) => {
   })
 
   socket.on("admin:update-quiz", (newQuiz) => {
+    if (!isAdmin(socket)) return
     if (!newQuiz || !Array.isArray(newQuiz.questions)) return
 
     const oldQuestionCount = state.quiz.questions.length
@@ -148,29 +187,35 @@ io.on("connection", (socket) => {
   })
 
   socket.on("admin:show-question", () => {
+    if (!isAdmin(socket)) return
     state.quiz.phase = "question"
     state.quiz.startTime = null
     emitState()
   })
 
   socket.on("admin:show-answers", () => {
+    if (!isAdmin(socket)) return
     state.quiz.phase = "answers"
     state.quiz.startTime = Date.now()
     emitState()
   })
 
   socket.on("admin:reveal", () => {
+    if (!isAdmin(socket)) return
     state.quiz.phase = "revealed"
     emitState()
   })
 
   socket.on("admin:back-to-lobby", () => {
+    if (!isAdmin(socket)) return
     state.quiz.phase = "lobby"
     state.quiz.startTime = null
     emitState()
   })
 
   socket.on("admin:next-question", () => {
+    if (!isAdmin(socket)) return
+
     if (state.quiz.currentQuestionIndex < state.quiz.questions.length - 1) {
       state.quiz.currentQuestionIndex += 1
       state.quiz.phase = "lobby"
@@ -182,6 +227,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("Client desconnectat:", socket.id)
     delete state.players[socket.id]
+    delete state.sessions[socket.id]
     emitState()
   })
 })

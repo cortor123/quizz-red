@@ -8,6 +8,11 @@ function Display() {
   const [players, setPlayers] = useState([])
   const [timeLeft, setTimeLeft] = useState(getTimeLeft(defaultQuiz))
 
+  const [isConnected, setIsConnected] = useState(socket.connected)
+  const [isAuthorized, setIsAuthorized] = useState(false)
+  const [password, setPassword] = useState("")
+  const [authError, setAuthError] = useState("")
+
   const current = useMemo(
     () => quiz.questions[quiz.currentQuestionIndex] || quiz.questions[0],
     [quiz]
@@ -17,18 +22,60 @@ function Display() {
     players[0]?.answersByQuestion?.[quiz.currentQuestionIndex] ?? null
 
   useEffect(() => {
+    const saved = sessionStorage.getItem("quiz-red-display-auth")
+    if (saved === "ok") {
+      setIsAuthorized(true)
+    }
+
+    const handleConnect = () => {
+      setIsConnected(true)
+      if (sessionStorage.getItem("quiz-red-display-auth") === "ok") {
+        socket.emit("auth:login", {
+          role: "display",
+          password: sessionStorage.getItem("quiz-red-display-password") || "",
+        })
+      }
+    }
+
+    const handleDisconnect = () => {
+      setIsConnected(false)
+    }
+
     const handleState = ({ quiz, players }) => {
       setQuiz(quiz)
       setPlayers(players)
       setTimeLeft(getTimeLeft(quiz))
     }
 
+    const handleAuthSuccess = ({ role }) => {
+      if (role === "display") {
+        setIsAuthorized(true)
+        setAuthError("")
+        sessionStorage.setItem("quiz-red-display-auth", "ok")
+        sessionStorage.setItem("quiz-red-display-password", password)
+      }
+    }
+
+    const handleAuthError = ({ message }) => {
+      setIsAuthorized(false)
+      setAuthError(message || "Error d'autenticació")
+      sessionStorage.removeItem("quiz-red-display-auth")
+    }
+
+    socket.on("connect", handleConnect)
+    socket.on("disconnect", handleDisconnect)
     socket.on("state:update", handleState)
+    socket.on("auth:success", handleAuthSuccess)
+    socket.on("auth:error", handleAuthError)
 
     return () => {
+      socket.off("connect", handleConnect)
+      socket.off("disconnect", handleDisconnect)
       socket.off("state:update", handleState)
+      socket.off("auth:success", handleAuthSuccess)
+      socket.off("auth:error", handleAuthError)
     }
-  }, [])
+  }, [password])
 
   useEffect(() => {
     if (quiz.phase !== "answers") {
@@ -42,6 +89,23 @@ function Display() {
 
     return () => clearInterval(interval)
   }, [quiz])
+
+  function login() {
+    setAuthError("")
+    socket.emit("auth:login", {
+      role: "display",
+      password,
+    })
+  }
+
+  function logout() {
+    setIsAuthorized(false)
+    setPassword("")
+    setAuthError("")
+    sessionStorage.removeItem("quiz-red-display-auth")
+    sessionStorage.removeItem("quiz-red-display-password")
+    window.location.reload()
+  }
 
   function getQuestionAnimationClass() {
     switch (current.settings.animationQuestion) {
@@ -94,6 +158,76 @@ function Display() {
     }
   }
 
+  if (!isAuthorized) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#111111",
+          padding: 24,
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 420,
+            background: "#1d1d1d",
+            color: "white",
+            borderRadius: 20,
+            padding: 24,
+          }}
+        >
+          <h1 style={{ marginTop: 0 }}>Accés Display</h1>
+
+          <p>
+            Estat socket:{" "}
+            <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>
+              {isConnected ? "connectat" : "desconnectat"}
+            </strong>
+          </p>
+
+          <input
+            type="password"
+            placeholder="Contrasenya display"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 12,
+              fontSize: 16,
+              borderRadius: 10,
+              border: "1px solid #555",
+              boxSizing: "border-box",
+              marginBottom: 12,
+            }}
+          />
+
+          {authError && (
+            <div style={{ color: "#ff8f8f", marginBottom: 12 }}>{authError}</div>
+          )}
+
+          <button
+            onClick={login}
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "none",
+              cursor: "pointer",
+              fontSize: 16,
+            }}
+          >
+            Entrar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       style={{
@@ -104,6 +238,10 @@ function Display() {
         boxSizing: "border-box",
       }}
     >
+      <div style={{ position: "fixed", top: 10, right: 10, zIndex: 20 }}>
+        <button onClick={logout}>Sortir</button>
+      </div>
+
       <div
         style={{
           width: "100%",
