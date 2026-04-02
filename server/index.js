@@ -88,6 +88,8 @@ function getTimeLeft() {
 }
 
 io.on("connection", (socket) => {
+  console.log("Client connectat:", socket.id)
+
   socket.emit("state:update", getPublicState())
 
   socket.on("player:join", ({ name }) => {
@@ -178,6 +180,7 @@ io.on("connection", (socket) => {
   })
 
   socket.on("disconnect", () => {
+    console.log("Client desconnectat:", socket.id)
     delete state.players[socket.id]
     emitState()
   })
@@ -187,6 +190,8 @@ app.get("/", (_, res) => {
   res.send("Quiz server running")
 })
 
-server.listen(3001, "0.0.0.0", () => {
-  console.log("Server listening on port 3001")
+const PORT = process.env.PORT || 3001
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server listening on port ${PORT}`)
 })
