@@ -5,6 +5,7 @@ import "../styles/quizAnimations.css"
 
 function Display() {
   const [quiz, setQuiz] = useState(defaultQuiz)
+  const [players, setPlayers] = useState([])
   const [ranking, setRanking] = useState([])
   const [timeLeft, setTimeLeft] = useState(getTimeLeft(defaultQuiz))
 
@@ -37,8 +38,9 @@ function Display() {
 
     const handleDisconnect = () => setIsConnected(false)
 
-    const handleState = ({ quiz, ranking }) => {
+    const handleState = ({ quiz, players, ranking }) => {
       setQuiz(quiz)
+      setPlayers(players || [])
       setRanking(ranking || [])
       setTimeLeft(getTimeLeft(quiz))
     }
@@ -152,6 +154,20 @@ function Display() {
         current.settings.columns === 2 ? "1fr 1fr" : "1fr",
       gap: `${current.settings.gap}px`,
     }
+  }
+
+  function getVoteCounts() {
+    const counts = [0, 0, 0, 0]
+    const qIndex = quiz.currentQuestionIndex
+
+    players.forEach((player) => {
+      const entry = player.answersByQuestion?.[qIndex]
+      if (entry && typeof entry.answerIndex === "number") {
+        counts[entry.answerIndex] += 1
+      }
+    })
+
+    return counts
   }
 
   function renderFullRanking() {
@@ -310,6 +326,8 @@ function Display() {
     )
   }
 
+  const voteCounts = getVoteCounts()
+
   return (
     <div
       style={{
@@ -427,10 +445,28 @@ function Display() {
                       boxSizing: "border-box",
                       whiteSpace: "pre-wrap",
                       color: "white",
+                      position: "relative",
                     }}
                   >
                     {current.settings.showAnswerLetters ? `${String.fromCharCode(65 + i)}. ` : ""}
                     {a}
+
+                    {current.settings.showVoteCounts && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 10,
+                          right: 12,
+                          background: "rgba(255,255,255,0.16)",
+                          borderRadius: 999,
+                          padding: "6px 10px",
+                          fontSize: `calc(${current.settings.answerSize}px * 0.55)`,
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {voteCounts[i]}
+                      </div>
+                    )}
                   </div>
                 )
               })}

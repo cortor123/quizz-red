@@ -46,6 +46,7 @@ const defaultQuestion = {
     questionOffsetX: 0,
     questionOffsetY: 0,
     showAnswerLetters: true,
+    showVoteCounts: true,
     animationQuestion: "fade",
     animationAnswers: "pop",
     animationReveal: "pulse",

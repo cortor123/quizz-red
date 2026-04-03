@@ -444,6 +444,8 @@ function Admin() {
 
           <label>Separació entre respostes<br /><input type="number" value={current.settings.gap} onChange={(e) => updateSettings("gap", Number(e.target.value))} /></label>
           <label>Separació pregunta-respostes<br /><input type="number" value={current.settings.questionAnswerSpacing} onChange={(e) => updateSettings("questionAnswerSpacing", Number(e.target.value))} /></label>
+          <label>Desplaçament X pregunta<br /><input type="number" value={current.settings.questionOffsetX} onChange={(e) => updateSettings("questionOffsetX", Number(e.target.value))} /></label>
+          <label>Desplaçament Y pregunta<br /><input type="number" value={current.settings.questionOffsetY} onChange={(e) => updateSettings("questionOffsetY", Number(e.target.value))} /></label>
           <label>Alçada quadrats respostes<br /><input type="number" value={current.settings.answerHeight} onChange={(e) => updateSettings("answerHeight", Number(e.target.value))} /></label>
           <label>Radius quadrats<br /><input type="number" value={current.settings.answerRadius} onChange={(e) => updateSettings("answerRadius", Number(e.target.value))} /></label>
           <label>Padding quadrats<br /><input type="number" value={current.settings.answerPadding} onChange={(e) => updateSettings("answerPadding", Number(e.target.value))} /></label>
@@ -451,12 +453,18 @@ function Admin() {
           <label>Amplada màxima bloc respostes<br /><input type="number" value={current.settings.answersWidth} onChange={(e) => updateSettings("answersWidth", Number(e.target.value))} /></label>
           <label>Desplaçament horitzontal respostes<br /><input type="number" value={current.settings.answersOffsetX} onChange={(e) => updateSettings("answersOffsetX", Number(e.target.value))} /></label>
           <label>Desplaçament vertical respostes<br /><input type="number" value={current.settings.answersOffsetY} onChange={(e) => updateSettings("answersOffsetY", Number(e.target.value))} /></label>
-          <label>Desplaçament horitzontal pregunta<br /><input type="number" value={current.settings.questionOffsetX} onChange={(e) => updateSettings("questionOffsetX", Number(e.target.value))} /></label>
-          <label>Desplaçament vertical pregunta<br /><input type="number" value={current.settings.questionOffsetY} onChange={(e) => updateSettings("questionOffsetY", Number(e.target.value))} /></label>
 
           <label>
             Mostrar lletres A/B/C/D<br />
             <select value={String(current.settings.showAnswerLetters)} onChange={(e) => updateSettings("showAnswerLetters", e.target.value === "true")}>
+              <option value="true">Sí</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+
+          <label>
+            Mostrar recompte de vots<br />
+            <select value={String(current.settings.showVoteCounts)} onChange={(e) => updateSettings("showVoteCounts", e.target.value === "true")}>
               <option value="true">Sí</option>
               <option value="false">No</option>
             </select>
@@ -498,7 +506,7 @@ function Admin() {
           <button type="button" onClick={showAnswers}>Mostrar respostes</button>
           <button type="button" onClick={reveal}>Revelar correcta</button>
           <button type="button" onClick={showRanking}>Mostrar ranking</button>
-          <button type="button" onClick={resetScores}>Reset punts</button>
+          <button type="button" onClick={resetScores}>Reset puntuacions</button>
           <button type="button" onClick={backToLobby}>Tornar a lobby</button>
           <button type="button" onClick={nextQuestion}>Següent pregunta</button>
         </div>

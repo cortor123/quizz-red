@@ -37,6 +37,7 @@ export const defaultQuestion = {
     questionOffsetY: 0,
 
     showAnswerLetters: true,
+    showVoteCounts: true,
 
     animationQuestion: "fade",
     animationAnswers: "pop",
@@ -68,7 +69,7 @@ export const defaultQuiz = {
     liveGap: 10,
     liveOffsetX: 0,
     liveOffsetY: 0,
-    livePosition: "right", // left | right
+    livePosition: "right",
     liveBackground: "#111111cc",
     liveItemBackground: "#1f1f1f",
   },
