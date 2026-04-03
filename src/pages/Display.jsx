@@ -5,7 +5,6 @@ import "../styles/quizAnimations.css"
 
 function Display() {
   const [quiz, setQuiz] = useState(defaultQuiz)
-  const [players, setPlayers] = useState([])
   const [ranking, setRanking] = useState([])
   const [timeLeft, setTimeLeft] = useState(getTimeLeft(defaultQuiz))
 
@@ -38,9 +37,8 @@ function Display() {
 
     const handleDisconnect = () => setIsConnected(false)
 
-    const handleState = ({ quiz, players, ranking }) => {
+    const handleState = ({ quiz, ranking }) => {
       setQuiz(quiz)
-      setPlayers(players)
       setRanking(ranking || [])
       setTimeLeft(getTimeLeft(quiz))
     }
@@ -156,7 +154,7 @@ function Display() {
     }
   }
 
-  function renderRankingBlock() {
+  function renderFullRanking() {
     const top = ranking.slice(0, quiz.rankingSettings.showTop)
 
     return (
@@ -180,12 +178,7 @@ function Display() {
           CLASSIFICACIÓ
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gap: `${quiz.rankingSettings.gap}px`,
-          }}
-        >
+        <div style={{ display: "grid", gap: `${quiz.rankingSettings.gap}px` }}>
           {top.map((p, index) => (
             <div
               key={p.id}
@@ -222,12 +215,85 @@ function Display() {
     )
   }
 
+  function renderLiveRanking() {
+    if (!quiz.rankingSettings.showLiveRanking) return null
+    if (quiz.phase === "ranking") return null
+    if (quiz.phase === "lobby") return null
+
+    const top = ranking.slice(0, quiz.rankingSettings.liveTop)
+
+    return (
+      <div
+        style={{
+          position: "fixed",
+          top: 90 + quiz.rankingSettings.liveOffsetY,
+          [quiz.rankingSettings.livePosition === "left" ? "left" : "right"]:
+            20 + quiz.rankingSettings.liveOffsetX,
+          width: `${quiz.rankingSettings.liveWidth}px`,
+          maxHeight: "70vh",
+          overflow: "auto",
+          background: quiz.rankingSettings.liveBackground,
+          borderRadius: 18,
+          padding: 16,
+          boxSizing: "border-box",
+          zIndex: 12,
+          backdropFilter: "blur(6px)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: `${quiz.rankingSettings.liveFontSize + 6}px`,
+            fontWeight: "bold",
+            color: quiz.rankingSettings.accentColor,
+            textAlign: "center",
+            marginBottom: 12,
+          }}
+        >
+          TOP {quiz.rankingSettings.liveTop}
+        </div>
+
+        <div style={{ display: "grid", gap: `${quiz.rankingSettings.liveGap}px` }}>
+          {top.map((p) => (
+            <div
+              key={p.id}
+              style={{
+                background: quiz.rankingSettings.liveItemBackground,
+                color: quiz.rankingSettings.textColor,
+                borderRadius: 14,
+                padding: "10px 12px",
+                display: "grid",
+                gridTemplateColumns: "48px 1fr 90px",
+                alignItems: "center",
+                fontSize: `${quiz.rankingSettings.liveFontSize}px`,
+              }}
+            >
+              <div style={{ fontWeight: "bold", color: quiz.rankingSettings.accentColor }}>
+                #{p.rank}
+              </div>
+              <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {p.name}
+              </div>
+              <div style={{ textAlign: "right", fontWeight: "bold" }}>
+                {p.totalScore}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (!isAuthorized) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#111111", padding: 24 }}>
         <div style={{ width: "100%", maxWidth: 420, background: "#1d1d1d", color: "white", borderRadius: 20, padding: 24 }}>
           <h1 style={{ marginTop: 0 }}>Accés Display</h1>
-          <p>Estat socket: <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>{isConnected ? "connectat" : "desconnectat"}</strong></p>
+          <p>
+            Estat socket:{" "}
+            <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>
+              {isConnected ? "connectat" : "desconnectat"}
+            </strong>
+          </p>
           <input
             type="password"
             placeholder="Contrasenya display"
@@ -271,6 +337,8 @@ function Display() {
         </div>
       )}
 
+      {renderLiveRanking()}
+
       <div
         style={{
           width: "100%",
@@ -288,7 +356,7 @@ function Display() {
 
         {quiz.phase === "ranking" && (
           <div style={{ minHeight: "calc(100vh - 80px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {renderRankingBlock()}
+            {renderFullRanking()}
           </div>
         )}
 
@@ -311,79 +379,62 @@ function Display() {
               </h1>
             </div>
 
-            {quiz.phase === "question" && (
-              <p style={{ fontSize: "2rem", textAlign: "center", opacity: 0.9, lineHeight: 1.3, color: "white" }}>
-                Llegeix la pregunta...
-              </p>
-            )}
+            <div
+              style={{
+                ...getAnswerLayout(),
+                width: "100%",
+                maxWidth: `${current.settings.answersWidth}px`,
+                margin: "0 auto",
+                transform: `translate(${current.settings.answersOffsetX}px, ${current.settings.answersOffsetY}px)`,
+              }}
+            >
+              {current.answers.map((a, i) => {
+                let color = "#222"
+                let extraClass = getAnswerAnimationClass(i)
 
-            {(quiz.phase === "answers" || quiz.phase === "revealed") && (
-              <>
-                <div style={{ fontSize: "2rem", marginBottom: 24, textAlign: "center", fontWeight: "bold", lineHeight: 1.2, color: "white" }}>
-                  {quiz.phase === "answers" ? `Temps restant: ${timeLeft}s` : "Solució revelada"}
-                </div>
+                if (quiz.phase === "revealed" && i === current.correctAnswer) {
+                  color = "green"
+                  if (current.settings.animationReveal === "pulse") {
+                    extraClass += " qa-correct-pulse"
+                  }
+                  if (current.settings.animationReveal === "glow") {
+                    extraClass += " qa-correct-glow"
+                  }
+                }
 
-                <div
-                  style={{
-                    ...getAnswerLayout(),
-                    width: "100%",
-                    maxWidth: `${current.settings.answersWidth}px`,
-                    margin: "0 auto",
-                    transform: `translate(${current.settings.answersOffsetX}px, ${current.settings.answersOffsetY}px)`,
-                  }}
-                >
-                  {current.answers.map((a, i) => {
-                    let color = "#222"
-                    let extraClass = getAnswerAnimationClass(i)
-
-                    if (quiz.phase === "revealed") {
-                      if (i === current.correctAnswer) {
-                        color = "green"
-
-                        if (current.settings.animationReveal === "pulse") {
-                          extraClass += " qa-correct-pulse"
-                        }
-                        if (current.settings.animationReveal === "glow") {
-                          extraClass += " qa-correct-glow"
-                        }
-                      }
-                    }
-
-                    return (
-                      <div
-                        key={i}
-                        className={extraClass.trim()}
-                        style={{
-                          background: color,
-                          minHeight: `${current.settings.answerHeight}px`,
-                          padding: `${current.settings.answerPadding}px`,
-                          borderRadius: `${current.settings.answerRadius}px`,
-                          fontSize: `${current.settings.answerSize}px`,
-                          textAlign: current.settings.answerAlign,
-                          fontFamily: current.settings.answerFont,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent:
-                            current.settings.answerAlign === "left"
-                              ? "flex-start"
-                              : current.settings.answerAlign === "right"
-                              ? "flex-end"
-                              : "center",
-                          wordBreak: "break-word",
-                          lineHeight: 1.2,
-                          boxSizing: "border-box",
-                          whiteSpace: "pre-wrap",
-                          color: "white",
-                        }}
-                      >
-                        {current.settings.showAnswerLetters ? `${String.fromCharCode(65 + i)}. ` : ""}
-                        {a}
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            )}
+                return (
+                  <div
+                    key={i}
+                    className={extraClass.trim()}
+                    style={{
+                      background: color,
+                      minHeight: `${current.settings.answerHeight}px`,
+                      padding: `${current.settings.answerPadding}px`,
+                      borderRadius: `${current.settings.answerRadius}px`,
+                      fontSize: `${current.settings.answerSize}px`,
+                      textAlign: current.settings.answerAlign,
+                      fontFamily: current.settings.answerFont,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent:
+                        current.settings.answerAlign === "left"
+                          ? "flex-start"
+                          : current.settings.answerAlign === "right"
+                          ? "flex-end"
+                          : "center",
+                      wordBreak: "break-word",
+                      lineHeight: 1.2,
+                      boxSizing: "border-box",
+                      whiteSpace: "pre-wrap",
+                      color: "white",
+                    }}
+                  >
+                    {current.settings.showAnswerLetters ? `${String.fromCharCode(65 + i)}. ` : ""}
+                    {a}
+                  </div>
+                )
+              })}
+            </div>
           </>
         )}
       </div>

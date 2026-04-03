@@ -204,6 +204,10 @@ function Admin() {
     socket.emit("admin:show-ranking")
   }
 
+  function resetScores() {
+    socket.emit("admin:reset-scores")
+  }
+
   function backToLobby() {
     const newQuiz = structuredClone(quiz)
     newQuiz.phase = "lobby"
@@ -222,7 +226,12 @@ function Admin() {
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#111111", padding: 24 }}>
         <div style={{ width: "100%", maxWidth: 420, background: "#1d1d1d", color: "white", borderRadius: 20, padding: 24 }}>
           <h1 style={{ marginTop: 0 }}>Accés Admin</h1>
-          <p>Estat socket: <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>{isConnected ? "connectat" : "desconnectat"}</strong></p>
+          <p>
+            Estat socket:{" "}
+            <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>
+              {isConnected ? "connectat" : "desconnectat"}
+            </strong>
+          </p>
           <input
             type="password"
             placeholder="Contrasenya admin"
@@ -330,24 +339,12 @@ function Admin() {
 
         <h3 style={{ marginTop: 30 }}>Puntuació</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 1fr))", gap: 16 }}>
-          <label>
-            Base encert
-            <br />
-            <input type="number" value={quiz.scoreSettings.correctBase} onChange={(e) => updateScoreSettings("correctBase", Number(e.target.value))} />
-          </label>
-          <label>
-            Bonus més ràpid
-            <br />
-            <input type="number" value={quiz.scoreSettings.fastestBonus} onChange={(e) => updateScoreSettings("fastestBonus", Number(e.target.value))} />
-          </label>
-          <label>
-            Bonus més lent
-            <br />
-            <input type="number" value={quiz.scoreSettings.slowestBonus} onChange={(e) => updateScoreSettings("slowestBonus", Number(e.target.value))} />
-          </label>
+          <label>Base encert<br /><input type="number" value={quiz.scoreSettings.correctBase} onChange={(e) => updateScoreSettings("correctBase", Number(e.target.value))} /></label>
+          <label>Bonus més ràpid<br /><input type="number" value={quiz.scoreSettings.fastestBonus} onChange={(e) => updateScoreSettings("fastestBonus", Number(e.target.value))} /></label>
+          <label>Bonus més lent<br /><input type="number" value={quiz.scoreSettings.slowestBonus} onChange={(e) => updateScoreSettings("slowestBonus", Number(e.target.value))} /></label>
         </div>
 
-        <h3 style={{ marginTop: 30 }}>Ranking visual</h3>
+        <h3 style={{ marginTop: 30 }}>Ranking gran</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 1fr))", gap: 16 }}>
           <label>Top visibles<br /><input type="number" value={quiz.rankingSettings.showTop} onChange={(e) => updateRankingSettings("showTop", Number(e.target.value))} /></label>
           <label>Color fons ranking<br /><input type="color" value={quiz.rankingSettings.background} onChange={(e) => updateRankingSettings("background", e.target.value)} /></label>
@@ -358,6 +355,35 @@ function Admin() {
           <label>Separació files ranking<br /><input type="number" value={quiz.rankingSettings.gap} onChange={(e) => updateRankingSettings("gap", Number(e.target.value))} /></label>
           <label>Offset vertical ranking<br /><input type="number" value={quiz.rankingSettings.topOffsetY} onChange={(e) => updateRankingSettings("topOffsetY", Number(e.target.value))} /></label>
           <label>Amplada bloc ranking<br /><input type="number" value={quiz.rankingSettings.blockWidth} onChange={(e) => updateRankingSettings("blockWidth", Number(e.target.value))} /></label>
+        </div>
+
+        <h3 style={{ marginTop: 30 }}>Ranking live al display</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 1fr))", gap: 16 }}>
+          <label>
+            Mostrar ranking live<br />
+            <select value={String(quiz.rankingSettings.showLiveRanking)} onChange={(e) => updateRankingSettings("showLiveRanking", e.target.value === "true")}>
+              <option value="true">Sí</option>
+              <option value="false">No</option>
+            </select>
+          </label>
+
+          <label>Top ranking live<br /><input type="number" value={quiz.rankingSettings.liveTop} onChange={(e) => updateRankingSettings("liveTop", Number(e.target.value))} /></label>
+          <label>Amplada ranking live<br /><input type="number" value={quiz.rankingSettings.liveWidth} onChange={(e) => updateRankingSettings("liveWidth", Number(e.target.value))} /></label>
+          <label>Mida text ranking live<br /><input type="number" value={quiz.rankingSettings.liveFontSize} onChange={(e) => updateRankingSettings("liveFontSize", Number(e.target.value))} /></label>
+          <label>Separació files ranking live<br /><input type="number" value={quiz.rankingSettings.liveGap} onChange={(e) => updateRankingSettings("liveGap", Number(e.target.value))} /></label>
+          <label>Offset X ranking live<br /><input type="number" value={quiz.rankingSettings.liveOffsetX} onChange={(e) => updateRankingSettings("liveOffsetX", Number(e.target.value))} /></label>
+          <label>Offset Y ranking live<br /><input type="number" value={quiz.rankingSettings.liveOffsetY} onChange={(e) => updateRankingSettings("liveOffsetY", Number(e.target.value))} /></label>
+
+          <label>
+            Posició ranking live<br />
+            <select value={quiz.rankingSettings.livePosition} onChange={(e) => updateRankingSettings("livePosition", e.target.value)}>
+              <option value="left">Esquerra</option>
+              <option value="right">Dreta</option>
+            </select>
+          </label>
+
+          <label>Fons ranking live<br /><input type="color" value={quiz.rankingSettings.liveBackground.slice(0, 7)} onChange={(e) => updateRankingSettings("liveBackground", `${e.target.value}cc`)} /></label>
+          <label>Color files ranking live<br /><input type="color" value={quiz.rankingSettings.liveItemBackground} onChange={(e) => updateRankingSettings("liveItemBackground", e.target.value)} /></label>
         </div>
 
         <h3 style={{ marginTop: 30 }}>Configuració visual pregunta/respostes</h3>
@@ -472,6 +498,7 @@ function Admin() {
           <button type="button" onClick={showAnswers}>Mostrar respostes</button>
           <button type="button" onClick={reveal}>Revelar correcta</button>
           <button type="button" onClick={showRanking}>Mostrar ranking</button>
+          <button type="button" onClick={resetScores}>Reset punts</button>
           <button type="button" onClick={backToLobby}>Tornar a lobby</button>
           <button type="button" onClick={nextQuestion}>Següent pregunta</button>
         </div>

@@ -57,8 +57,20 @@ export const defaultQuiz = {
     itemBackground: "#1f1f1f",
     fontSize: 28,
     gap: 14,
+
     topOffsetY: 0,
     blockWidth: 1100,
+
+    showLiveRanking: true,
+    liveTop: 10,
+    liveWidth: 420,
+    liveFontSize: 20,
+    liveGap: 10,
+    liveOffsetX: 0,
+    liveOffsetY: 0,
+    livePosition: "right", // left | right
+    liveBackground: "#111111cc",
+    liveItemBackground: "#1f1f1f",
   },
   scoreSettings: {
     correctBase: 500,

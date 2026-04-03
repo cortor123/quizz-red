@@ -52,8 +52,8 @@ const defaultQuestion = {
   },
 }
 
-const state = {
-  quiz: {
+function createDefaultQuiz() {
+  return {
     currentQuestionIndex: 0,
     phase: "lobby",
     startTime: null,
@@ -68,13 +68,28 @@ const state = {
       gap: 14,
       topOffsetY: 0,
       blockWidth: 1100,
+
+      showLiveRanking: true,
+      liveTop: 10,
+      liveWidth: 420,
+      liveFontSize: 20,
+      liveGap: 10,
+      liveOffsetX: 0,
+      liveOffsetY: 0,
+      livePosition: "right",
+      liveBackground: "#111111cc",
+      liveItemBackground: "#1f1f1f",
     },
     scoreSettings: {
       correctBase: 500,
       fastestBonus: 200,
       slowestBonus: 20,
     },
-  },
+  }
+}
+
+const state = {
+  quiz: createDefaultQuiz(),
   players: {},
   sessions: {},
 }
@@ -186,6 +201,16 @@ function recalculateScoresForQuestion(questionIndex) {
   })
 }
 
+function resetAllScores() {
+  Object.values(state.players).forEach((player) => {
+    player.totalScore = 0
+    Object.keys(player.answersByQuestion || {}).forEach((key) => {
+      player.answersByQuestion[key].score = 0
+      player.answersByQuestion[key].isCorrect = false
+    })
+  })
+}
+
 io.on("connection", (socket) => {
   console.log("Client connectat:", socket.id)
 
@@ -221,11 +246,15 @@ io.on("connection", (socket) => {
     const cleanName = String(name || "").trim()
     if (!cleanName) return
 
+    const existing = state.players[socket.id]
+    const answersByQuestion = existing?.answersByQuestion || {}
+    const totalScore = existing?.totalScore || 0
+
     state.players[socket.id] = {
       id: socket.id,
       name: cleanName,
-      answersByQuestion: {},
-      totalScore: 0,
+      answersByQuestion,
+      totalScore,
     }
 
     socket.emit("player:joined", {
@@ -243,7 +272,6 @@ io.on("connection", (socket) => {
     if (getTimeLeft() === 0) return
 
     const qIndex = state.quiz.currentQuestionIndex
-
     if (player.answersByQuestion[qIndex]) return
 
     player.answersByQuestion[qIndex] = {
@@ -295,6 +323,12 @@ io.on("connection", (socket) => {
   socket.on("admin:show-ranking", () => {
     if (!isAdmin(socket)) return
     state.quiz.phase = "ranking"
+    emitState()
+  })
+
+  socket.on("admin:reset-scores", () => {
+    if (!isAdmin(socket)) return
+    resetAllScores()
     emitState()
   })
 
