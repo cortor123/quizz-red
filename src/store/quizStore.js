@@ -46,9 +46,25 @@ export const defaultQuestion = {
 
 export const defaultQuiz = {
   currentQuestionIndex: 0,
-  phase: "lobby",
+  phase: "lobby", // lobby | question | answers | revealed | ranking
   startTime: null,
   questions: [{ ...defaultQuestion }],
+  rankingSettings: {
+    showTop: 10,
+    background: "#111111",
+    textColor: "#ffffff",
+    accentColor: "#ffd700",
+    itemBackground: "#1f1f1f",
+    fontSize: 28,
+    gap: 14,
+    topOffsetY: 0,
+    blockWidth: 1100,
+  },
+  scoreSettings: {
+    correctBase: 500,
+    fastestBonus: 200,
+    slowestBonus: 20,
+  },
 }
 
 export const FONT_OPTIONS = [

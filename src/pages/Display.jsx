@@ -6,6 +6,7 @@ import "../styles/quizAnimations.css"
 function Display() {
   const [quiz, setQuiz] = useState(defaultQuiz)
   const [players, setPlayers] = useState([])
+  const [ranking, setRanking] = useState([])
   const [timeLeft, setTimeLeft] = useState(getTimeLeft(defaultQuiz))
 
   const [isConnected, setIsConnected] = useState(socket.connected)
@@ -18,14 +19,12 @@ function Display() {
     [quiz]
   )
 
-  const firstPlayerAnswer =
-    players[0]?.answersByQuestion?.[quiz.currentQuestionIndex] ?? null
+  const totalQuestions = quiz.questions.length
+  const currentNumber = quiz.currentQuestionIndex + 1
 
   useEffect(() => {
     const saved = sessionStorage.getItem("quiz-red-display-auth")
-    if (saved === "ok") {
-      setIsAuthorized(true)
-    }
+    if (saved === "ok") setIsAuthorized(true)
 
     const handleConnect = () => {
       setIsConnected(true)
@@ -37,13 +36,12 @@ function Display() {
       }
     }
 
-    const handleDisconnect = () => {
-      setIsConnected(false)
-    }
+    const handleDisconnect = () => setIsConnected(false)
 
-    const handleState = ({ quiz, players }) => {
+    const handleState = ({ quiz, players, ranking }) => {
       setQuiz(quiz)
       setPlayers(players)
+      setRanking(ranking || [])
       setTimeLeft(getTimeLeft(quiz))
     }
 
@@ -158,69 +156,87 @@ function Display() {
     }
   }
 
-  if (!isAuthorized) {
+  function renderRankingBlock() {
+    const top = ranking.slice(0, quiz.rankingSettings.showTop)
+
     return (
       <div
         style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#111111",
-          padding: 24,
-          boxSizing: "border-box",
+          width: "100%",
+          maxWidth: `${quiz.rankingSettings.blockWidth}px`,
+          margin: "0 auto",
+          transform: `translateY(${quiz.rankingSettings.topOffsetY}px)`,
         }}
       >
         <div
           style={{
-            width: "100%",
-            maxWidth: 420,
-            background: "#1d1d1d",
-            color: "white",
-            borderRadius: 20,
-            padding: 24,
+            textAlign: "center",
+            fontSize: `calc(${quiz.rankingSettings.fontSize}px + 14px)`,
+            fontWeight: "bold",
+            color: quiz.rankingSettings.accentColor,
+            marginBottom: 24,
           }}
         >
+          CLASSIFICACIÓ
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gap: `${quiz.rankingSettings.gap}px`,
+          }}
+        >
+          {top.map((p, index) => (
+            <div
+              key={p.id}
+              style={{
+                background: quiz.rankingSettings.itemBackground,
+                color: quiz.rankingSettings.textColor,
+                borderRadius: 22,
+                padding: "18px 24px",
+                display: "grid",
+                gridTemplateColumns: "90px 1fr 180px",
+                alignItems: "center",
+                fontSize: `${quiz.rankingSettings.fontSize}px`,
+                boxShadow:
+                  index === 0
+                    ? `0 0 30px ${quiz.rankingSettings.accentColor}55`
+                    : "0 8px 20px rgba(0,0,0,0.25)",
+                border:
+                  index === 0
+                    ? `3px solid ${quiz.rankingSettings.accentColor}`
+                    : "2px solid transparent",
+              }}
+            >
+              <div style={{ fontWeight: "bold", color: quiz.rankingSettings.accentColor }}>
+                #{p.rank}
+              </div>
+              <div style={{ fontWeight: 700 }}>{p.name}</div>
+              <div style={{ textAlign: "right", fontWeight: "bold" }}>
+                {p.totalScore} pts
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#111111", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 420, background: "#1d1d1d", color: "white", borderRadius: 20, padding: 24 }}>
           <h1 style={{ marginTop: 0 }}>Accés Display</h1>
-
-          <p>
-            Estat socket:{" "}
-            <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>
-              {isConnected ? "connectat" : "desconnectat"}
-            </strong>
-          </p>
-
+          <p>Estat socket: <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>{isConnected ? "connectat" : "desconnectat"}</strong></p>
           <input
             type="password"
             placeholder="Contrasenya display"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 12,
-              fontSize: 16,
-              borderRadius: 10,
-              border: "1px solid #555",
-              boxSizing: "border-box",
-              marginBottom: 12,
-            }}
+            style={{ width: "100%", padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #555", boxSizing: "border-box", marginBottom: 12 }}
           />
-
-          {authError && (
-            <div style={{ color: "#ff8f8f", marginBottom: 12 }}>{authError}</div>
-          )}
-
-          <button
-            onClick={login}
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 10,
-              border: "none",
-              cursor: "pointer",
-              fontSize: 16,
-            }}
-          >
+          {authError && <div style={{ color: "#ff8f8f", marginBottom: 12 }}>{authError}</div>}
+          <button onClick={login} style={{ width: "100%", padding: 12, borderRadius: 10, border: "none", cursor: "pointer", fontSize: 16 }}>
             Entrar
           </button>
         </div>
@@ -232,7 +248,10 @@ function Display() {
     <div
       style={{
         minHeight: "100vh",
-        background: current.settings.background,
+        background:
+          quiz.phase === "ranking"
+            ? quiz.rankingSettings.background
+            : current.settings.background,
         color: "white",
         padding: 40,
         boxSizing: "border-box",
@@ -242,6 +261,16 @@ function Display() {
         <button onClick={logout}>Sortir</button>
       </div>
 
+      <div style={{ position: "fixed", top: 18, left: 24, fontSize: 28, fontWeight: "bold", zIndex: 15 }}>
+        {currentNumber}/{totalQuestions}
+      </div>
+
+      {quiz.phase === "answers" && (
+        <div style={{ position: "fixed", top: 18, right: 90, fontSize: 28, fontWeight: "bold", zIndex: 15 }}>
+          {timeLeft}s
+        </div>
+      )}
+
       <div
         style={{
           width: "100%",
@@ -250,39 +279,22 @@ function Display() {
         }}
       >
         {quiz.phase === "lobby" && (
-          <div
-            style={{
-              minHeight: "calc(100vh - 80px)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              textAlign: "center",
-              padding: "0 40px",
-            }}
-          >
-            <h1
-              style={{
-                fontSize: "clamp(2.2rem, 5vw, 4.5rem)",
-                lineHeight: 1.25,
-                maxWidth: "1000px",
-                margin: 0,
-                wordBreak: "break-word",
-                color: "white",
-              }}
-            >
+          <div style={{ minHeight: "calc(100vh - 80px)", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "0 40px" }}>
+            <h1 style={{ fontSize: "clamp(2.2rem, 5vw, 4.5rem)", lineHeight: 1.25, maxWidth: "1000px", margin: 0, wordBreak: "break-word", color: "white" }}>
               Esperant que comenci el joc...
             </h1>
           </div>
         )}
 
-        {quiz.phase !== "lobby" && (
+        {quiz.phase === "ranking" && (
+          <div style={{ minHeight: "calc(100vh - 80px)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {renderRankingBlock()}
+          </div>
+        )}
+
+        {quiz.phase !== "lobby" && quiz.phase !== "ranking" && (
           <>
-            <div
-              className={getQuestionAnimationClass()}
-              style={{
-                transform: `translate(${current.settings.questionOffsetX}px, ${current.settings.questionOffsetY}px)`,
-              }}
-            >
+            <div className={getQuestionAnimationClass()} style={{ transform: `translate(${current.settings.questionOffsetX}px, ${current.settings.questionOffsetY}px)` }}>
               <h1
                 style={{
                   fontSize: `${current.settings.questionSize}px`,
@@ -300,34 +312,15 @@ function Display() {
             </div>
 
             {quiz.phase === "question" && (
-              <p
-                style={{
-                  fontSize: "2rem",
-                  textAlign: "center",
-                  opacity: 0.9,
-                  lineHeight: 1.3,
-                  color: "white",
-                }}
-              >
+              <p style={{ fontSize: "2rem", textAlign: "center", opacity: 0.9, lineHeight: 1.3, color: "white" }}>
                 Llegeix la pregunta...
               </p>
             )}
 
             {(quiz.phase === "answers" || quiz.phase === "revealed") && (
               <>
-                <div
-                  style={{
-                    fontSize: "2rem",
-                    marginBottom: 24,
-                    textAlign: "center",
-                    fontWeight: "bold",
-                    lineHeight: 1.2,
-                    color: "white",
-                  }}
-                >
-                  {quiz.phase === "answers"
-                    ? `Temps restant: ${timeLeft}s`
-                    : "Solució revelada"}
+                <div style={{ fontSize: "2rem", marginBottom: 24, textAlign: "center", fontWeight: "bold", lineHeight: 1.2, color: "white" }}>
+                  {quiz.phase === "answers" ? `Temps restant: ${timeLeft}s` : "Solució revelada"}
                 </div>
 
                 <div
@@ -353,8 +346,6 @@ function Display() {
                         if (current.settings.animationReveal === "glow") {
                           extraClass += " qa-correct-glow"
                         }
-                      } else if (i === firstPlayerAnswer) {
-                        color = "red"
                       }
                     }
 
@@ -385,9 +376,7 @@ function Display() {
                           color: "white",
                         }}
                       >
-                        {current.settings.showAnswerLetters
-                          ? `${String.fromCharCode(65 + i)}. `
-                          : ""}
+                        {current.settings.showAnswerLetters ? `${String.fromCharCode(65 + i)}. ` : ""}
                         {a}
                       </div>
                     )

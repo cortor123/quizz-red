@@ -10,6 +10,7 @@ import {
 function Admin() {
   const [quiz, setQuiz] = useState(defaultQuiz)
   const [players, setPlayers] = useState([])
+  const [ranking, setRanking] = useState([])
   const [timeLeft, setTimeLeft] = useState(getTimeLeft(defaultQuiz))
   const [isConnected, setIsConnected] = useState(socket.connected)
 
@@ -42,9 +43,10 @@ function Admin() {
       setIsConnected(false)
     }
 
-    const handleState = ({ quiz, players }) => {
+    const handleState = ({ quiz, players, ranking }) => {
       setQuiz(quiz)
       setPlayers(players)
+      setRanking(ranking || [])
       setTimeLeft(getTimeLeft(quiz))
     }
 
@@ -131,6 +133,18 @@ function Admin() {
     pushQuiz(newQuiz)
   }
 
+  function updateRankingSettings(field, value) {
+    const newQuiz = structuredClone(quiz)
+    newQuiz.rankingSettings[field] = value
+    pushQuiz(newQuiz)
+  }
+
+  function updateScoreSettings(field, value) {
+    const newQuiz = structuredClone(quiz)
+    newQuiz.scoreSettings[field] = value
+    pushQuiz(newQuiz)
+  }
+
   function addQuestion() {
     const newQuiz = structuredClone(quiz)
     const copy = structuredClone(current || defaultQuestion)
@@ -183,10 +197,11 @@ function Admin() {
   }
 
   function reveal() {
-    const newQuiz = structuredClone(quiz)
-    newQuiz.phase = "revealed"
-    pushQuiz(newQuiz)
     socket.emit("admin:reveal")
+  }
+
+  function showRanking() {
+    socket.emit("admin:show-ranking")
   }
 
   function backToLobby() {
@@ -199,78 +214,24 @@ function Admin() {
 
   function nextQuestion() {
     if (quiz.currentQuestionIndex >= quiz.questions.length - 1) return
-
-    const newQuiz = structuredClone(quiz)
-    newQuiz.currentQuestionIndex += 1
-    newQuiz.phase = "lobby"
-    newQuiz.startTime = null
-    pushQuiz(newQuiz)
     socket.emit("admin:next-question")
   }
 
   if (!isAuthorized) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#111111",
-          padding: 24,
-          boxSizing: "border-box",
-        }}
-      >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 420,
-            background: "#1d1d1d",
-            color: "white",
-            borderRadius: 20,
-            padding: 24,
-          }}
-        >
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#111111", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 420, background: "#1d1d1d", color: "white", borderRadius: 20, padding: 24 }}>
           <h1 style={{ marginTop: 0 }}>Accés Admin</h1>
-
-          <p>
-            Estat socket:{" "}
-            <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>
-              {isConnected ? "connectat" : "desconnectat"}
-            </strong>
-          </p>
-
+          <p>Estat socket: <strong style={{ color: isConnected ? "#6aff6a" : "#ff6a6a" }}>{isConnected ? "connectat" : "desconnectat"}</strong></p>
           <input
             type="password"
             placeholder="Contrasenya admin"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 12,
-              fontSize: 16,
-              borderRadius: 10,
-              border: "1px solid #555",
-              boxSizing: "border-box",
-              marginBottom: 12,
-            }}
+            style={{ width: "100%", padding: 12, fontSize: 16, borderRadius: 10, border: "1px solid #555", boxSizing: "border-box", marginBottom: 12 }}
           />
-
-          {authError && (
-            <div style={{ color: "#ff8f8f", marginBottom: 12 }}>{authError}</div>
-          )}
-
-          <button
-            onClick={login}
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 10,
-              border: "none",
-              cursor: "pointer",
-              fontSize: 16,
-            }}
-          >
+          {authError && <div style={{ color: "#ff8f8f", marginBottom: 12 }}>{authError}</div>}
+          <button onClick={login} style={{ width: "100%", padding: 12, borderRadius: 10, border: "none", cursor: "pointer", fontSize: 16 }}>
             Entrar
           </button>
         </div>
@@ -278,21 +239,11 @@ function Admin() {
     )
   }
 
-  if (!current) {
-    return <div style={{ padding: 24 }}>Carregant admin...</div>
-  }
+  if (!current) return <div style={{ padding: 24 }}>Carregant admin...</div>
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", fontFamily: "sans-serif" }}>
-      <div
-        style={{
-          width: 300,
-          borderRight: "1px solid #ccc",
-          padding: 16,
-          boxSizing: "border-box",
-          overflowY: "auto",
-        }}
-      >
+      <div style={{ width: 320, borderRight: "1px solid #ccc", padding: 16, boxSizing: "border-box", overflowY: "auto" }}>
         <h2>Preguntes</h2>
 
         <div style={{ marginBottom: 12 }}>
@@ -303,18 +254,23 @@ function Admin() {
         </div>
 
         <div style={{ marginBottom: 12 }}>
-          <button type="button" onClick={logout}>
-            Sortir
-          </button>
+          <button type="button" onClick={logout}>Sortir</button>
         </div>
 
         <div style={{ marginBottom: 16 }}>
-          <strong>Jugadors connectats:</strong> {players.length}
+          <strong>Jugadors:</strong> {players.length}
         </div>
 
-        {players.map((p) => (
+        <div style={{ marginBottom: 16 }}>
+          <strong>Pregunta actual:</strong> {quiz.currentQuestionIndex + 1}/{quiz.questions.length}
+        </div>
+
+        <hr style={{ margin: "16px 0" }} />
+
+        <h3 style={{ marginTop: 0 }}>Top 10</h3>
+        {ranking.slice(0, 10).map((p) => (
           <div key={p.id} style={{ marginBottom: 6 }}>
-            {p.name}
+            {p.rank}. {p.name} — {p.totalScore}
           </div>
         ))}
 
@@ -328,10 +284,7 @@ function Admin() {
               padding: 10,
               marginBottom: 8,
               cursor: "pointer",
-              border:
-                i === quiz.currentQuestionIndex
-                  ? "2px solid #000"
-                  : "1px solid #ccc",
+              border: i === quiz.currentQuestionIndex ? "2px solid #000" : "1px solid #ccc",
               borderRadius: 8,
               display: "flex",
               justifyContent: "space-between",
@@ -341,10 +294,7 @@ function Admin() {
             <span style={{ flex: 1 }}>
               {i + 1}. {q.question}
             </span>
-
-            <button type="button" onClick={(e) => deleteQuestion(i, e)}>
-              ❌
-            </button>
+            <button type="button" onClick={(e) => deleteQuestion(i, e)}>❌</button>
           </div>
         ))}
 
@@ -353,72 +303,65 @@ function Admin() {
         </button>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          padding: 24,
-          boxSizing: "border-box",
-          overflowY: "auto",
-        }}
-      >
+      <div style={{ flex: 1, padding: 24, boxSizing: "border-box", overflowY: "auto" }}>
         <h1>Admin Quiz</h1>
 
-        <p>
-          <strong>Fase actual:</strong> {quiz.phase}
-        </p>
+        <p><strong>Fase actual:</strong> {quiz.phase}</p>
+        <p><strong>Progrés:</strong> {quiz.currentQuestionIndex + 1}/{quiz.questions.length}</p>
 
         {quiz.phase === "answers" && (
-          <p>
-            <strong>Temps restant:</strong> {timeLeft}s
-          </p>
+          <p><strong>Temps restant:</strong> {timeLeft}s</p>
         )}
 
         <h3>Pregunta</h3>
         <textarea
           value={current.question}
           onChange={(e) => updateField("question", e.target.value)}
-          style={{
-            width: "100%",
-            minHeight: 100,
-            fontSize: 18,
-            boxSizing: "border-box",
-            marginBottom: 20,
-          }}
+          style={{ width: "100%", minHeight: 100, fontSize: 18, boxSizing: "border-box", marginBottom: 20 }}
         />
 
         <h3>Respostes</h3>
         {current.answers.map((a, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              gap: 10,
-              marginBottom: 10,
-              alignItems: "center",
-            }}
-          >
-            <input
-              type="radio"
-              checked={current.correctAnswer === i}
-              onChange={() => updateField("correctAnswer", i)}
-            />
-            <input
-              value={a}
-              onChange={(e) => updateAnswer(i, e.target.value)}
-              style={{ flex: 1, padding: 8 }}
-            />
+          <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "center" }}>
+            <input type="radio" checked={current.correctAnswer === i} onChange={() => updateField("correctAnswer", i)} />
+            <input value={a} onChange={(e) => updateAnswer(i, e.target.value)} style={{ flex: 1, padding: 8 }} />
           </div>
         ))}
 
-        <h3 style={{ marginTop: 30 }}>Configuració visual</h3>
+        <h3 style={{ marginTop: 30 }}>Puntuació</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 1fr))", gap: 16 }}>
+          <label>
+            Base encert
+            <br />
+            <input type="number" value={quiz.scoreSettings.correctBase} onChange={(e) => updateScoreSettings("correctBase", Number(e.target.value))} />
+          </label>
+          <label>
+            Bonus més ràpid
+            <br />
+            <input type="number" value={quiz.scoreSettings.fastestBonus} onChange={(e) => updateScoreSettings("fastestBonus", Number(e.target.value))} />
+          </label>
+          <label>
+            Bonus més lent
+            <br />
+            <input type="number" value={quiz.scoreSettings.slowestBonus} onChange={(e) => updateScoreSettings("slowestBonus", Number(e.target.value))} />
+          </label>
+        </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(260px, 1fr))",
-            gap: 16,
-          }}
-        >
+        <h3 style={{ marginTop: 30 }}>Ranking visual</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 1fr))", gap: 16 }}>
+          <label>Top visibles<br /><input type="number" value={quiz.rankingSettings.showTop} onChange={(e) => updateRankingSettings("showTop", Number(e.target.value))} /></label>
+          <label>Color fons ranking<br /><input type="color" value={quiz.rankingSettings.background} onChange={(e) => updateRankingSettings("background", e.target.value)} /></label>
+          <label>Color text ranking<br /><input type="color" value={quiz.rankingSettings.textColor} onChange={(e) => updateRankingSettings("textColor", e.target.value)} /></label>
+          <label>Color accent ranking<br /><input type="color" value={quiz.rankingSettings.accentColor} onChange={(e) => updateRankingSettings("accentColor", e.target.value)} /></label>
+          <label>Color targeta ranking<br /><input type="color" value={quiz.rankingSettings.itemBackground} onChange={(e) => updateRankingSettings("itemBackground", e.target.value)} /></label>
+          <label>Mida text ranking<br /><input type="number" value={quiz.rankingSettings.fontSize} onChange={(e) => updateRankingSettings("fontSize", Number(e.target.value))} /></label>
+          <label>Separació files ranking<br /><input type="number" value={quiz.rankingSettings.gap} onChange={(e) => updateRankingSettings("gap", Number(e.target.value))} /></label>
+          <label>Offset vertical ranking<br /><input type="number" value={quiz.rankingSettings.topOffsetY} onChange={(e) => updateRankingSettings("topOffsetY", Number(e.target.value))} /></label>
+          <label>Amplada bloc ranking<br /><input type="number" value={quiz.rankingSettings.blockWidth} onChange={(e) => updateRankingSettings("blockWidth", Number(e.target.value))} /></label>
+        </div>
+
+        <h3 style={{ marginTop: 30 }}>Configuració visual pregunta/respostes</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 1fr))", gap: 16 }}>
           <label>Color de fons<br /><input type="color" value={current.settings.background} onChange={(e) => updateSettings("background", e.target.value)} /></label>
           <label>Temps de resposta<br /><input type="number" value={current.timeLimit} onChange={(e) => updateField("timeLimit", Number(e.target.value))} /></label>
           <label>Mida pregunta<br /><input type="number" value={current.settings.questionSize} onChange={(e) => updateSettings("questionSize", Number(e.target.value))} /></label>
@@ -528,6 +471,7 @@ function Admin() {
           <button type="button" onClick={showQuestion}>Mostrar pregunta</button>
           <button type="button" onClick={showAnswers}>Mostrar respostes</button>
           <button type="button" onClick={reveal}>Revelar correcta</button>
+          <button type="button" onClick={showRanking}>Mostrar ranking</button>
           <button type="button" onClick={backToLobby}>Tornar a lobby</button>
           <button type="button" onClick={nextQuestion}>Següent pregunta</button>
         </div>
