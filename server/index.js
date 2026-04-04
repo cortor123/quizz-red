@@ -58,7 +58,7 @@ function createDefaultQuiz() {
     currentQuestionIndex: 0,
     phase: "lobby",
     startTime: null,
-    questions: [{ structured: false, ...defaultQuestion }],
+    questions: [{ ...defaultQuestion }],
     rankingSettings: {
       showTop: 10,
       background: "#111111",
@@ -108,9 +108,6 @@ function normalizeQuiz(raw = {}) {
   return {
     ...base,
     ...raw,
-    currentQuestionIndex: 0,
-    phase: "lobby",
-    startTime: null,
     questions:
       Array.isArray(raw.questions) && raw.questions.length > 0
         ? raw.questions.map(normalizeQuestion)
@@ -258,6 +255,9 @@ function resetPlayersForNewGame() {
 
 function loadQuizAsNewGame(rawQuiz) {
   state.quiz = normalizeQuiz(rawQuiz)
+  state.quiz.currentQuestionIndex = 0
+  state.quiz.phase = "lobby"
+  state.quiz.startTime = null
   resetPlayersForNewGame()
 }
 
@@ -338,18 +338,21 @@ io.on("connection", (socket) => {
     if (!isAdmin(socket)) return
     if (!newQuiz || !Array.isArray(newQuiz.questions)) return
 
+    const currentPhase = state.quiz.phase
+    const currentQuestionIndex = state.quiz.currentQuestionIndex
+    const currentStartTime = state.quiz.startTime
+
     state.quiz = normalizeQuiz({
       ...state.quiz,
       ...newQuiz,
-      currentQuestionIndex: state.quiz.currentQuestionIndex,
-      phase: state.quiz.phase,
-      startTime: state.quiz.startTime,
     })
 
+    state.quiz.phase = currentPhase
     state.quiz.currentQuestionIndex = Math.min(
-      state.quiz.currentQuestionIndex,
+      currentQuestionIndex,
       state.quiz.questions.length - 1
     )
+    state.quiz.startTime = currentStartTime
 
     emitState()
   })
