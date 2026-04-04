@@ -338,8 +338,12 @@ io.on("connection", (socket) => {
     if (!isAdmin(socket)) return
     if (!newQuiz || !Array.isArray(newQuiz.questions)) return
 
+    const requestedQuestionIndex =
+      typeof newQuiz.currentQuestionIndex === "number"
+        ? newQuiz.currentQuestionIndex
+        : state.quiz.currentQuestionIndex
+
     const currentPhase = state.quiz.phase
-    const currentQuestionIndex = state.quiz.currentQuestionIndex
     const currentStartTime = state.quiz.startTime
 
     state.quiz = normalizeQuiz({
@@ -348,9 +352,9 @@ io.on("connection", (socket) => {
     })
 
     state.quiz.phase = currentPhase
-    state.quiz.currentQuestionIndex = Math.min(
-      currentQuestionIndex,
-      state.quiz.questions.length - 1
+    state.quiz.currentQuestionIndex = Math.max(
+      0,
+      Math.min(requestedQuestionIndex, state.quiz.questions.length - 1)
     )
     state.quiz.startTime = currentStartTime
 
