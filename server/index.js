@@ -58,7 +58,7 @@ function createDefaultQuiz() {
     currentQuestionIndex: 0,
     phase: "lobby",
     startTime: null,
-    questions: [{ ...defaultQuestion }],
+    questions: [{ structured: false, ...defaultQuestion }],
     rankingSettings: {
       showTop: 10,
       background: "#111111",
@@ -69,7 +69,6 @@ function createDefaultQuiz() {
       gap: 14,
       topOffsetY: 0,
       blockWidth: 1100,
-
       showLiveRanking: true,
       liveTop: 10,
       liveWidth: 420,
@@ -89,8 +88,46 @@ function createDefaultQuiz() {
   }
 }
 
+function normalizeQuestion(raw = {}) {
+  return {
+    ...defaultQuestion,
+    ...raw,
+    answers: Array.isArray(raw.answers)
+      ? [...raw.answers].slice(0, 4).concat(["A", "B", "C", "D"]).slice(0, 4)
+      : [...defaultQuestion.answers],
+    settings: {
+      ...defaultQuestion.settings,
+      ...(raw.settings || {}),
+    },
+  }
+}
+
+function normalizeQuiz(raw = {}) {
+  const base = createDefaultQuiz()
+
+  return {
+    ...base,
+    ...raw,
+    currentQuestionIndex: 0,
+    phase: "lobby",
+    startTime: null,
+    questions:
+      Array.isArray(raw.questions) && raw.questions.length > 0
+        ? raw.questions.map(normalizeQuestion)
+        : [normalizeQuestion()],
+    rankingSettings: {
+      ...base.rankingSettings,
+      ...(raw.rankingSettings || {}),
+    },
+    scoreSettings: {
+      ...base.scoreSettings,
+      ...(raw.scoreSettings || {}),
+    },
+  }
+}
+
 const state = {
-  quiz: createDefaultQuiz(),
+  quiz: normalizeQuiz(),
   players: {},
   sessions: {},
 }
@@ -212,6 +249,18 @@ function resetAllScores() {
   })
 }
 
+function resetPlayersForNewGame() {
+  Object.values(state.players).forEach((player) => {
+    player.answersByQuestion = {}
+    player.totalScore = 0
+  })
+}
+
+function loadQuizAsNewGame(rawQuiz) {
+  state.quiz = normalizeQuiz(rawQuiz)
+  resetPlayersForNewGame()
+}
+
 io.on("connection", (socket) => {
   console.log("Client connectat:", socket.id)
 
@@ -289,11 +338,36 @@ io.on("connection", (socket) => {
     if (!isAdmin(socket)) return
     if (!newQuiz || !Array.isArray(newQuiz.questions)) return
 
-    state.quiz = {
+    state.quiz = normalizeQuiz({
       ...state.quiz,
       ...newQuiz,
-    }
+      currentQuestionIndex: state.quiz.currentQuestionIndex,
+      phase: state.quiz.phase,
+      startTime: state.quiz.startTime,
+    })
 
+    state.quiz.currentQuestionIndex = Math.min(
+      state.quiz.currentQuestionIndex,
+      state.quiz.questions.length - 1
+    )
+
+    emitState()
+  })
+
+  socket.on("admin:load-quiz", (loadedQuiz) => {
+    if (!isAdmin(socket)) return
+    if (!loadedQuiz) return
+
+    loadQuizAsNewGame(loadedQuiz)
+    emitState()
+  })
+
+  socket.on("admin:new-game", () => {
+    if (!isAdmin(socket)) return
+    state.quiz.phase = "lobby"
+    state.quiz.startTime = null
+    state.quiz.currentQuestionIndex = 0
+    resetPlayersForNewGame()
     emitState()
   })
 

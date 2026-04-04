@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { socket } from "../socket"
 import {
   FONT_OPTIONS,
@@ -17,6 +17,8 @@ function Admin() {
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [password, setPassword] = useState("")
   const [authError, setAuthError] = useState("")
+
+  const fileInputRef = useRef(null)
 
   const current = useMemo(
     () => quiz.questions[quiz.currentQuestionIndex] || quiz.questions[0],
@@ -208,6 +210,10 @@ function Admin() {
     socket.emit("admin:reset-scores")
   }
 
+  function newGame() {
+    socket.emit("admin:new-game")
+  }
+
   function backToLobby() {
     const newQuiz = structuredClone(quiz)
     newQuiz.phase = "lobby"
@@ -219,6 +225,66 @@ function Admin() {
   function nextQuestion() {
     if (quiz.currentQuestionIndex >= quiz.questions.length - 1) return
     socket.emit("admin:next-question")
+  }
+
+  function buildSaveData() {
+    return {
+      quiz: {
+        questions: quiz.questions,
+        rankingSettings: quiz.rankingSettings,
+        scoreSettings: quiz.scoreSettings,
+      },
+    }
+  }
+
+  function saveGameToFile() {
+    const data = buildSaveData()
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: "application/json",
+    })
+
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    const date = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")
+
+    a.href = url
+    a.download = `quiz-red-${date}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  function openLoadDialog() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+      fileInputRef.current.click()
+    }
+  }
+
+  function handleLoadFile(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result)
+        const loadedQuiz = parsed?.quiz
+
+        if (!loadedQuiz || !Array.isArray(loadedQuiz.questions)) {
+          alert("Fitxer de joc no vàlid.")
+          return
+        }
+
+        socket.emit("admin:load-quiz", loadedQuiz)
+      } catch {
+        alert("No s'ha pogut llegir el fitxer.")
+      }
+    }
+
+    reader.readAsText(file)
   }
 
   if (!isAuthorized) {
@@ -252,6 +318,14 @@ function Admin() {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", fontFamily: "sans-serif" }}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        onChange={handleLoadFile}
+        style={{ display: "none" }}
+      />
+
       <div style={{ width: 320, borderRight: "1px solid #ccc", padding: 16, boxSizing: "border-box", overflowY: "auto" }}>
         <h2>Preguntes</h2>
 
@@ -321,6 +395,12 @@ function Admin() {
         {quiz.phase === "answers" && (
           <p><strong>Temps restant:</strong> {timeLeft}s</p>
         )}
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
+          <button type="button" onClick={saveGameToFile}>Desar joc</button>
+          <button type="button" onClick={openLoadDialog}>Carregar joc</button>
+          <button type="button" onClick={newGame}>Nova partida</button>
+        </div>
 
         <h3>Pregunta</h3>
         <textarea
